@@ -51,14 +51,14 @@ if __name__ == '__main__':
 
     # 2. 生成频率点 (angular frequency in rad/s)
     # Start from a small non-zero value for log scale
-    w = np.logspace(np.log10(100), np.log10(1000000), 1000) # Frequencies from 1 to 100 rad/s (log scale)
+    w = np.logspace(np.log10(10), np.log10(1000000), 1000) # Frequencies from 1 to 100 rad/s (log scale)
 
     # 3. Get the frequency response of the true system
     H_true = np.polyval(b_true, 1j * w) / np.polyval(a_true, 1j * w)
 
     # 4. Use our custom function to estimate coefficients, set numerator order to 2
     nb_estimate = 2  # Specify numerator order as 2
-    b_estimated, a_estimated = my_invfreqs_2nd_order_fixed(H_true, w, nb_estimate)
+    b_estimated, a_estimated = invfreqs(H_true, w, nb_estimate)
 
     print('=== True System Coefficients ===')
     print(f'b_true: {b_true}')
