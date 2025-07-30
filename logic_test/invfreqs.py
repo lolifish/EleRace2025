@@ -3,27 +3,7 @@ import matplotlib.pyplot as plt
 
 # (my_invfreqs_2nd_order_fixed 函数的代码不变，此处省略，假定已定义)
 # 为了代码的完整性，我在此处再次包含该函数。
-def my_invfreqs_2nd_order_fixed(H, w, nb):
-    """
-    实现一个简单的2阶invfreqs（连续时间）。
-    恢复一个连续时间2阶传递函数 H(s) = N(s)/D(s) 的分子(b)和分母(a)系数，
-    使其最符合给定频率 w 下的复数频率响应 H。
-    本版本将分母最高阶系数 a_na 固定为1，与MATLAB标准invfreqs行为一致。
-
-    参数:
-      H        : 复数频率响应向量 (NumPy 数组)。
-      w        : 频率向量，单位为弧度/秒 (NumPy 数组)。
-      nb       : 分子多项式的阶数。分母阶数在本函数中固定为2 (na=2)。
-
-    返回:
-      b_coeffs : 分子系数向量，格式为 [b_nb, ..., b_1, b_0] (NumPy 数组)。
-      a_coeffs : 分母系数向量，格式为 [a_2, a_1, a_0]，其中 a_2 固定为1 (NumPy 数组)。
-
-    传递函数形式为 H(s) = (b_nb*s^nb + ... + b_1*s + b_0) /
-                             (a_2*s^2 + a_1*s + a_0)
-    系数通过最小二乘法求解线性方程组来估计，假设 a_2 = 1。
-    """
-
+def invfreqs(H, w, nb):
     na = 2
     n_freq = len(w)
     n_unknowns = (nb + 1) + na
