@@ -7,7 +7,7 @@ diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Include/core_cm7.h
-diansai111\stm32h7xx_it.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdint.h
+diansai111\stm32h7xx_it.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stdint.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Include/cmsis_version.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -15,8 +15,8 @@ diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 diansai111\stm32h7xx_it.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/system_stm32h7xx.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-diansai111\stm32h7xx_it.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stddef.h
-diansai111\stm32h7xx_it.o: D:\Keil5\ARM\ARMCC\Bin\..\include\math.h
+diansai111\stm32h7xx_it.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stddef.h
+diansai111\stm32h7xx_it.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\math.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio_ex.h
@@ -32,6 +32,8 @@ diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
+diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
+diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 diansai111\stm32h7xx_it.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
 diansai111\stm32h7xx_it.o: ../Core/Inc/stm32h7xx_it.h

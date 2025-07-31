@@ -1284,9 +1284,10 @@ ARM Macro Assembler    Page 20
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M7.fp.dp --apcs=
 interwork --depend=diansai111\startup_stm32h750xx.d -odiansai111\startup_stm32h
-750xx.o -I.\RTE\_DianSai111 -ID:\Keil5\ARM\Pack\ARM\CMSIS\6.1.0\CMSIS\Core\Incl
-ude --predefine="__UVISION_VERSION SETA 540" --predefine="STM32H750xx SETA 1" -
--predefine="_RTE_ SETA 1" --list=startup_stm32h750xx.lst startup_stm32h750xx.s
+750xx.o -I.\RTE\_DianSai111 -ID:\mcu\keil5_core\ARM\PACK\ARM\CMSIS\6.1.0\CMSIS\
+Core\Include --predefine="__UVISION_VERSION SETA 542" --predefine="STM32H750xx 
+SETA 1" --predefine="_RTE_ SETA 1" --list=startup_stm32h750xx.lst startup_stm32
+h750xx.s
 
 
 
