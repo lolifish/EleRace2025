@@ -3,17 +3,17 @@
         {
             "name": "DianSai111",
             "includePath": [
-                "e:\\programs\\EleRace2025\\DianSai111\\Core\\Inc",
-                "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Inc",
-                "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Inc\\Legacy",
-                "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Device\\ST\\STM32H7xx\\Include",
-                "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Include",
-                "e:\\programs\\EleRace2025\\mcu_code",
-                "D:\\mcu\\keil5_core\\ARM\\ARMCC\\include",
-                "D:\\mcu\\keil5_core\\ARM\\ARMCC\\include\\rw",
-                "e:\\programs\\EleRace2025\\DianSai111\\MDK-ARM",
-                "e:\\programs\\EleRace2025\\DianSai111\\Core\\Src",
-                "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Src"
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Core\\Inc",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Inc",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Inc\\Legacy",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Device\\ST\\STM32H7xx\\Include",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Include",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\mcu_code",
+                "D:\\Keil5\\ARM\\ARMCC\\include",
+                "D:\\Keil5\\ARM\\ARMCC\\include\\rw",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\MDK-ARM",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Core\\Src",
+                "c:\\Users\\ASUS\\Desktop\\DianSai_Git\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Src"
             ],
             "defines": [
                 "USE_PWR_LDO_SUPPLY",
