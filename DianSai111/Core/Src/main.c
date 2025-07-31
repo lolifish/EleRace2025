@@ -23,6 +23,8 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "stdbool.h"
+
+#include "invfreqs_stm32.c"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +44,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+SPI_HandleTypeDef hspi1;
+
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
@@ -56,6 +60,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -65,7 +70,7 @@ static void MX_USART1_UART_Init(void);
 
 // InvFreqs计算使用的数据
 double w[50];
-//complex_double h[50];
+complex_double h[50];
 volatile uint16_t invs_cnt = 0;
 
 
@@ -102,7 +107,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             if (is_study_cmd) {
                 start_study_flag = true;
                 memset(UART_data_buf, 0, 100);
-                HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
+                HAL_UARTEx_ReceiveToIdle_DMA(&huart1,UART_data_buf, 100);
                 return;
             }
         }
@@ -149,7 +154,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
         // 重新启动DMA接收
         memset(UART_data_buf, 0, 100);
-        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, (uint8_t *)UART_data_buf, 100);
     }
 }
 
@@ -270,7 +275,6 @@ int send_data(const char* str_b0, const char* str_b1,
 }
 /* USER CODE END 0 */
 
-
 /**
   * @brief  The application entry point.
   * @retval int
@@ -302,14 +306,18 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-
+  // 拉高使能引脚
+  HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	
-	HAL_UARTEx_ReceiveToIdle_DMA(&huart1,UART_data_buf,100);
+	HAL_UARTEx_ReceiveToIdle_DMA(&huart1,(uint8_t *)UART_data_buf,100);
+
+
   while (1)
   {
 		// 在main函数中处理FPGA相关操作
@@ -327,17 +335,65 @@ int main(void)
 		char study_funished_string[]="loading.aph=0\xff\xff\xffhook.aph=127\xff\xff\xff";
 		
     if (start_study_flag) {
-        // *************************** 通知FPGA启动学习操作 ***************************//
-        HAL_UART_Transmit(&huart1,studying_string,sizeof(studying_string)-1,10);//长度要-1否则会发一个空字节出问题
-        // 学习触发后，调用send_data发送指定数值（示例：b0=1.2, b1=3.4, b2=5.6, a1=7.8, a2=9.0）
-        // 实际使用时可根据需求修改参数值
-        send_data("1.2", "3.4", "5.6", "7.8", "9.0");
-        HAL_Delay(1000);
-				HAL_UART_Transmit(&huart1,study_funished_string,sizeof(study_funished_string)-1,10);//长度要-1否则会发一个空字节出问题
-        start_study_flag = false;  // 清除标志位
-    }
-		send_data("0", "0", "0","0","0" );
-		
+// 先通知fpga开始学习
+        uint16_t spi_data = 0x0002;  // 16位数据，只最低2位为1
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 修改屏幕图标到繁忙
+        HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string),10);
+        // 开始接受FPGA返回的数据
+        invs_cnt = 0;
+        while (1){
+          // 接受频率
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          // 频率收到0x0002退出
+          if (spi_data == 0x0002) break;
+          // 处理频率
+          w[invs_cnt] = spi_data*100.0 * 2 * 3.141592654;
+
+          // 接受响应
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          // 处理响应
+          uint8_t amp_buffer = (spi_data >> 8) & 0xFF;
+          uint8_t pha_buffer = spi_data & 0xFF;
+          double phase_rad = ((double)pha_buffer - 90.0) * 2.0;
+          double amp = 0.001 + amp_buffer * (10.0 - 0.001) / 240.0;
+          h[invs_cnt].real = cos(phase_rad) * amp;
+          h[invs_cnt].imag = sin(phase_rad) * amp;
+
+          invs_cnt += 1;
+        }
+
+        // 计算InvFreqs
+        complex_double b_coeffs[3];
+        complex_double a_coeffs[2];
+        invfreqs_stm32(h, w, invs_cnt, b_coeffs, a_coeffs);
+
+        // 转为字符串发送
+        char real_str1[64];
+        char real_str2[64];
+        char real_str3[64];
+        char real_str4[64];
+        char real_str5[64];
+
+        // 将实部转换为科学计数法字符串
+        snprintf(real_str1, sizeof(real_str1), "%.3e", b_coeffs[0].real);
+        snprintf(real_str2, sizeof(real_str1), "%.3e", b_coeffs[1].real);
+        snprintf(real_str3, sizeof(real_str1), "%.3e", b_coeffs[2].real);
+        snprintf(real_str4, sizeof(real_str1), "%.3e", a_coeffs[0].real);
+        snprintf(real_str5, sizeof(real_str1), "%.3e", a_coeffs[1].real);
+        send_data(real_str1,real_str2,real_str3,real_str4,real_str5);
+        // 修改屏幕图标到完成
+				HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string),10);
+
+        // 清除标志位
+        start_study_flag = false;  
+      }
 		
   }
 	
@@ -372,17 +428,16 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 60;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 5;
+  RCC_OscInitStruct.PLL.PLLN = 192;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -407,6 +462,54 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 0x0;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
+  hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
+  hspi1.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi1.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi1.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
+  hspi1.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
+  hspi1.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
+  hspi1.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
+  hspi1.Init.IOSwap = SPI_IO_SWAP_DISABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
 }
 
 /**
@@ -483,6 +586,7 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
@@ -490,6 +594,17 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : SPI1_EN_Pin */
+  GPIO_InitStruct.Pin = SPI1_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SPI1_EN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -514,8 +629,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
