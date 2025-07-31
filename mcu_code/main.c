@@ -72,6 +72,11 @@ volatile float amp_out = 0.0f;
 static int last_freq = 0;
 static float last_amp = 0.0f;
 
+// 新增FPGA操作标志位
+volatile bool freq_changed = false;    // 频率变化标志
+volatile bool amp_changed = false;     // 幅值变化标志
+volatile bool start_study_flag = false;// 启动学习标志
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     if (huart == &huart1) {
         
@@ -86,21 +91,21 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             if (current_freq != last_freq) {
                 freq_out = current_freq;
                 last_freq = current_freq;
-                // *************************** 通知FPGA输出频率变化 ***************************//
+                freq_changed = true;  // 设置频率变化标志
             }
             
             // 检测幅值变化（使用0.05容差确保0.1精度的变化被正确识别）
             if (fabs(current_amp - last_amp) > 0.05f) {
                 amp_out = current_amp;
                 last_amp = current_amp;
-                // *************************** 通知FPGA输出幅值变化 ***************************//
+                amp_changed = true;   // 设置幅值变化标志
             }
         }
         
         // 3. 处理启动命令检测
         start_study = check_start_study_command(UART_data_buf, Size);
         if (start_study == 1) {
-            // *************************** 通知FPGA启动学习操作 ***************************//
+            start_study_flag = true;  // 设置启动学习标志
             start_study = 0;  // 清除标志
         }
         
@@ -163,7 +168,71 @@ int decode_uart(uint8_t *uart_buf, uint16_t buf_len, int *current_freq, float *c
 
     return 0;  // 未找到有效帧头，解析失败
 }
+int send_data(const char* str_b0, const char* str_b1, 
+                          const char* str_b2, const char* str_a1, const char* str_a2) {
+    // 1. 检查输入参数有效性（避免空指针）
+    if (str_b0 == NULL || str_b1 == NULL || str_b2 == NULL || str_a1 == NULL || str_a2 == NULL) {
+        return -1; // 输入参数无效
+    }
 
+    // 2. 定义发送缓冲区（根据最大可能长度设置，256字节足够容纳5个参数）
+    uint8_t uart_send_buf[256];
+    size_t buf_offset = 0; // 缓冲区偏移量，记录当前写入位置
+    int write_len; // 临时变量，记录单次sprintf写入的字节数
+
+    // 3. 组装para1指令：格式 "para1.txt=\"para1=xxx\"" + 分隔符（3个0xFF）
+    write_len = sprintf((char*)(uart_send_buf + buf_offset), "para1.txt=\"b0=%s\"", str_b0);
+    if (write_len < 0) return -2; // 格式化失败
+    buf_offset += write_len;
+    // 添加分隔符（3个0xFF），检查缓冲区剩余空间
+    if (buf_offset + 3 > sizeof(uart_send_buf)) return -2; // 缓冲区溢出
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+
+    // 4. 组装para2指令：格式 "para2.txt=\"para2=xxx\""
+    write_len = sprintf((char*)(uart_send_buf + buf_offset), "para2.txt=\"b1=%s\"", str_b1);
+    if (write_len < 0) return -2;
+    buf_offset += write_len;
+    if (buf_offset + 3 > sizeof(uart_send_buf)) return -2;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+
+    // 5. 组装para3指令：格式 "para3.txt=\"para3=xxx\""
+    write_len = sprintf((char*)(uart_send_buf + buf_offset), "para3.txt=\"b2=%s\"", str_b2);
+    if (write_len < 0) return -2;
+    buf_offset += write_len;
+    if (buf_offset + 3 > sizeof(uart_send_buf)) return -2;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+
+    // 6. 组装para4指令：格式 "para4.txt=\"para4=xxx\""
+    write_len = sprintf((char*)(uart_send_buf + buf_offset), "para4.txt=\"a1=%s\"", str_a1);
+    if (write_len < 0) return -2;
+    buf_offset += write_len;
+    if (buf_offset + 3 > sizeof(uart_send_buf)) return -2;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+
+    // 7. 组装para5指令：格式 "para5.txt=\"para5=xxx\""
+    write_len = sprintf((char*)(uart_send_buf + buf_offset), "para5.txt=\"a2=%s\"", str_a2);
+    if (write_len < 0) return -2;
+    buf_offset += write_len;
+    if (buf_offset + 3 > sizeof(uart_send_buf)) return -2;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+    uart_send_buf[buf_offset++] = 0xFF;
+
+    // 8. 通过USART1发送组装好的指令
+    if (HAL_UART_Transmit(&huart1, uart_send_buf, buf_offset, 1000) != HAL_OK) {
+        return -3; // 串口发送失败（超时或错误）
+    }
+
+    return 0; // 全部指令发送成功
+}
 /* USER CODE END 0 */
 
 /**
@@ -207,11 +276,33 @@ int main(void)
 	HAL_UARTEx_ReceiveToIdle_DMA(&huart1,UART_data_buf,100);
   while (1)
   {
-		
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // 在main函数中处理FPGA相关操作
+    if (freq_changed) {
+        // *************************** 通知FPGA输出频率变化 ***************************//
+        freq_changed = false;  // 清除标志位
+    }
+    
+    if (amp_changed) {
+        // *************************** 通知FPGA输出幅值变化 ***************************//
+        amp_changed = false;   // 清除标志位
+    }
+    
+    if (start_study_flag) {
+        // *************************** 通知FPGA启动学习操作 ***************************//
+        
+        // 学习触发后，调用send_data发送指定数值（示例：b0=1.2, b1=3.4, b2=5.6, a1=7.8, a2=9.0）
+        // 实际使用时可根据需求修改参数值
+        send_data("1.2", "3.4", "5.6", "7.8", "9.0");
+        HAL_Delay(1000);
+			
+        start_study_flag = false;  // 清除标志位
+    }
+		send_data("0", "0", "0","0","0" );
   }
+	
   /* USER CODE END 3 */
 }
 
