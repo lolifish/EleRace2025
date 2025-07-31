@@ -8,6 +8,7 @@
                 "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\STM32H7xx_HAL_Driver\\Inc\\Legacy",
                 "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Device\\ST\\STM32H7xx\\Include",
                 "e:\\programs\\EleRace2025\\DianSai111\\Drivers\\CMSIS\\Include",
+                "e:\\programs\\EleRace2025\\mcu_code",
                 "D:\\mcu\\keil5_core\\ARM\\ARMCC\\include",
                 "D:\\mcu\\keil5_core\\ARM\\ARMCC\\include\\rw",
                 "e:\\programs\\EleRace2025\\DianSai111\\MDK-ARM",
