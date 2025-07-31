@@ -22,39 +22,35 @@ Dialog DLL:      TCM.DLL V1.56.4.0
  
 <h2>Project:</h2>
 C:\Users\ASUS\Desktop\DianSai_Git\EleRace2025\DianSai111\MDK-ARM\DianSai111.uvprojx
-Project File Date:  07/30/2025
+Project File Date:  07/31/2025
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.05 update 1 (build 106)', folder: 'D:\Keil5\ARM\ARMCC\Bin'
 Build target 'DianSai111'
 compiling main.c...
-../Core/Src/main.c(90): warning:  #223-D: function "decode_uart" declared implicitly
+../Core/Src/main.c(104): warning:  #223-D: function "memset" declared implicitly
+                  memset(UART_data_buf, 0, 100);
+../Core/Src/main.c(105): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
+                  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
+../Core/Src/main.c(132): warning:  #223-D: function "decode_uart" declared implicitly
           int decode_status = decode_uart(UART_data_buf, Size, &current_freq, &current_amp);
-../Core/Src/main.c(110): warning:  #223-D: function "check_start_study_command" declared implicitly
-          start_study = check_start_study_command(UART_data_buf, Size);
-../Core/Src/main.c(117): warning:  #223-D: function "memset" declared implicitly
+../Core/Src/main.c(151): warning:  #223-D: function "memset" declared implicitly
           memset(UART_data_buf, 0, 100);
-../Core/Src/main.c(118): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
+../Core/Src/main.c(152): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
           HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
-../Core/Src/main.c(122): warning:  #159-D: declaration is incompatible with previous "check_start_study_command" (declared at line 110)
-  bool check_start_study_command(uint8_t *uart_buf, uint16_t buf_len) {
-../Core/Src/main.c(151): warning:  #223-D: function "memcmp" declared implicitly
-              if (memcmp(&uart_buf[i], ac_header, 4) == 0) {
-../Core/Src/main.c(154): warning:  #223-D: function "memcpy" declared implicitly
-                  memcpy(data, &uart_buf[i+4], 8);
-../Core/Src/main.c(187): warning:  #223-D: function "memcmp" declared implicitly
+../Core/Src/main.c(191): warning:  #223-D: function "memcmp" declared implicitly
               if (memcmp(&uart_buf[i], ad_header, 4) == 0) {
-../Core/Src/main.c(307): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
+../Core/Src/main.c(312): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
   	HAL_UARTEx_ReceiveToIdle_DMA(&huart1,UART_data_buf,100);
-../Core/Src/main.c(326): warning:  #167-D: argument of type "char *" is incompatible with parameter of type "const uint8_t *"
-          HAL_UART_Transmit(&huart1,studying_string,sizeof(studying_string)-1,10);
 ../Core/Src/main.c(331): warning:  #167-D: argument of type "char *" is incompatible with parameter of type "const uint8_t *"
-  				HAL_UART_Transmit(&huart1,study_funished_string,sizeof(study_funished_string)-1,10);
-../Core/Src/main.c: 11 warnings, 0 errors
+          HAL_UART_Transmit(&huart1,studying_string,sizeof(studying_string)-1,10);//长度�?1否则会发一个空字节出问�?                                    ^
+../Core/Src/main.c(336): warning:  #167-D: argument of type "char *" is incompatible with parameter of type "const uint8_t *"
+  				HAL_UART_Transmit(&huart1,study_funished_string,sizeof(study_funished_string)-1,10);//长度�?1否则会发一个空字节出问�?  				                          ^
+../Core/Src/main.c: 9 warnings, 0 errors
 linking...
-Program Size: Code=20258 RO-data=762 RW-data=44 ZI-data=2124  
+Program Size: Code=19994 RO-data=762 RW-data=44 ZI-data=2124  
 FromELF: creating hex file...
-"DianSai111\DianSai111.axf" - 0 Error(s), 11 Warning(s).
+"DianSai111\DianSai111.axf" - 0 Error(s), 9 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -77,7 +73,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE@6.1.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:02
+Build Time Elapsed:  00:00:01
 </pre>
 </body>
 </html>

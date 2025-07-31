@@ -63,150 +63,153 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-volatile bool custom_mode = true;//上电默认进入自定义频率模式
-volatile bool custom_mode_auto_amp = false;//False：100-3kHz的需要自动增益的部分    True：1MHz的高频、幅度不管的部分
-volatile bool study_mode = false;//与自定义模式相反，学习、模拟模式
+// InvFreqs计算使用的数据
+double w[50];
+//complex_double h[50];
+volatile uint16_t invs_cnt = 0;
+
 
 volatile uint8_t UART_data_buf[100];
-volatile bool start_study = 0;
-volatile int freq_out = 0;
-volatile float amp_out = 0.0f;
 
-// 新增静态变量用于保存上一次的值（替代decode_uart中的静态变量）
+volatile int freq_out = 1000;
+volatile float amp_out = 1.0f;
+
+// 保存上一次的值
 static int last_freq = 0;
 static float last_amp = 0.0f;
 
-// 新增FPGA操作标志位
+// FPGA操作标志位
 volatile bool freq_changed = false;    // 频率变化标志
 volatile bool amp_changed = false;     // 幅值变化标志
 volatile bool start_study_flag = false;// 启动学习标志
 
+// 模式状态变量
+volatile bool single_freq_output = false;  // 单频输出(a1)
+volatile bool auto_gain_mode = false;   // 自动增益(b2)
+volatile bool simulate_mode = false;    // 模仿模式(c3)
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     if (huart == &huart1) {
-        
-        // 1. 解析当前帧的频率和幅值（仅获取原始值，不检测变化）
+        // 1. 检测开始学习命令(AA AA AA AA)
+        if (Size >= 4) {
+            bool is_study_cmd = true;
+            for (int i = 0; i < 4; i++) {
+                if (UART_data_buf[i] != 0xAA) {
+                    is_study_cmd = false;
+                    break;
+                }
+            }
+            if (is_study_cmd) {
+                start_study_flag = true;
+                memset(UART_data_buf, 0, 100);
+                HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
+                return;
+            }
+        }
+
+        // 2. 检测模式控制命令(6字节固定格式)
+        if (Size == 6) {
+            // 单频输出控制(A1开头结尾)
+            if (UART_data_buf[0] == 0xA1 && UART_data_buf[5] == 0xA1) {
+                single_freq_output = (UART_data_buf[1] == 0x01);
+                
+            }
+            // 自动增益控制(B2开头结尾)
+            else if (UART_data_buf[0] == 0xB2 && UART_data_buf[5] == 0xB2) {
+                auto_gain_mode = (UART_data_buf[1] == 0x01);
+                
+            }
+            // 模仿模式控制(C3开头结尾)
+            else if (UART_data_buf[0] == 0xC3 && UART_data_buf[5] == 0xC3) {
+                simulate_mode = (UART_data_buf[1] == 0x01);
+                
+            }
+        }
+
+        // 3. 解析频率和幅值(保留原有AD帧头逻辑)
         int current_freq = 0;
         float current_amp = 0.0f;
         int decode_status = decode_uart(UART_data_buf, Size, &current_freq, &current_amp);
         
-        // 2. 在回调函数中进行变化检测（核心迁移逻辑）
-        if (decode_status == 1) {  // 解析到有效频率和幅值
+        if (decode_status == 1) {
             // 检测频率变化
             if (current_freq != last_freq) {
                 freq_out = current_freq;
                 last_freq = current_freq;
-                freq_changed = true;  // 设置频率变化标志
+                freq_changed = true;
             }
             
-            // 检测幅值变化（使用0.05容差确保0.1精度的变化被正确识别）
+            // 检测幅值变化
             if (fabs(current_amp - last_amp) > 0.05f) {
                 amp_out = current_amp;
                 last_amp = current_amp;
-                amp_changed = true;   // 设置幅值变化标志
+                amp_changed = true;
             }
         }
-        
-        // 3. 处理启动命令检测
-        start_study = check_start_study_command(UART_data_buf, Size);
-        if (start_study == 1) {
-            start_study_flag = true;  // 设置启动学习标志
-            start_study = 0;  // 清除标志
-        }
-        
-        // 4. 重新启动DMA接收
+
+        // 重新启动DMA接收
         memset(UART_data_buf, 0, 100);
         HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART_data_buf, 100);
     }
 }
 
-bool check_start_study_command(uint8_t *uart_buf, uint16_t buf_len) {
-    if (uart_buf == NULL || buf_len < 6) {
-        return false;
-    }
-    uint8_t target_frame[6] = {0xAA, 0xAA, 0xAA, 0xAA, 0x11, 0x11};
-    for (uint16_t i = 0; i <= buf_len - 6; i++) {
-        if (uart_buf[i] == target_frame[0] &&
-            uart_buf[i+1] == target_frame[1] &&
-            uart_buf[i+2] == target_frame[2] &&
-            uart_buf[i+3] == target_frame[3] &&
-            uart_buf[i+4] == target_frame[4] &&
-            uart_buf[i+5] == target_frame[5]) {
-            return true;
-        }
-    }
-    return false;
+// 发送模式状态到串口屏
+void send_mode_status() {
+    uint8_t buf[6];
+    
+    // 单频输出状态(A1 01/00 00 00 00 A1)
+    buf[0] = 0xA1;
+    buf[1] = single_freq_output ? 0x01 : 0x00;
+    buf[2] = 0x00;
+    buf[3] = 0x00;
+    buf[4] = 0x00;
+    buf[5] = 0xA1;
+    HAL_UART_Transmit(&huart1, buf, 6, 10);
+    
+    // 自动增益状态(B2 01/00 00 00 00 B2)
+    buf[0] = 0xB2;
+    buf[1] = auto_gain_mode ? 0x01 : 0x00;
+    buf[5] = 0xB2;
+    HAL_UART_Transmit(&huart1, buf, 6, 10);
+    
+    // 模仿模式状态(C3 01/00 00 00 00 C3)
+    buf[0] = 0xC3;
+    buf[1] = simulate_mode ? 0x01 : 0x00;
+    buf[5] = 0xC3;
+    HAL_UART_Transmit(&huart1, buf, 6, 10);
 }
 
 int decode_uart(uint8_t *uart_buf, uint16_t buf_len, int *current_freq, float *current_amp) {
-    // 检查缓冲区合法性
     if (uart_buf == NULL || current_freq == NULL || current_amp == NULL) {
-        return 0;  // 解析失败
+        return 0;
     }
 
-    // 1. 先处理帧头为AC AC AC AC的指令（模式切换）
-    uint8_t ac_header[4] = {0xAC, 0xAC, 0xAC, 0xAC};
-    // 该帧长度固定为12字节（4字节头 + 8字节数据）
-    if (buf_len >= 12) {
-        for (uint16_t i = 0; i <= buf_len - 12; i++) {
-            if (memcmp(&uart_buf[i], ac_header, 4) == 0) {
-                // 提取帧头后的8字节数据
-                uint8_t data[8];
-                memcpy(data, &uart_buf[i+4], 8);
-
-                // 情况1：AC AC AC AC 01 00 00 00 00 00 00 00
-                if (data[0] == 0x01 && 
-                    data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x00 &&
-                    data[4] == 0x00 && data[5] == 0x00 && data[6] == 0x00 && data[7] == 0x00) {
-                    study_mode = true;
-                    custom_mode = false;
-                    custom_mode_auto_amp = false;
-                }
-                // 情况2：AC AC AC AC 00 00 00 00 01 00 00 00
-                else if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x00 &&
-                         data[4] == 0x01 && data[5] == 0x00 && data[6] == 0x00 && data[7] == 0x00) {
-                    custom_mode = true;
-                    custom_mode_auto_amp = true;
-                    study_mode = false;
-                }
-                // 情况3：AC AC AC AC 00 00 00 00 00 00 00 00（原需求中第三个条件描述可能重复，此处补充合理默认值）
-                else if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x00 &&
-                         data[4] == 0x00 && data[5] == 0x00 && data[6] == 0x00 && data[7] == 0x00) {
-                    custom_mode = true;
-                    custom_mode_auto_amp = false;
-                    study_mode = false;
-                }
-                // 处理完模式帧后继续检查其他帧，但不返回（可能存在多个帧）
-            }
-        }
-    }
-
-    // 2. 再处理原有的AD AD AD AD帧头（频率和幅值）
+    // 保留原有AD帧头解析逻辑(频率和幅值)
     uint8_t ad_header[4] = {0xAD, 0xAD, 0xAD, 0xAD};
     if (buf_len >= 12) {
         for (uint16_t i = 0; i <= buf_len - 12; i++) {
             if (memcmp(&uart_buf[i], ad_header, 4) == 0) {
-                // 解析频率（4字节小端模式）
+                // 解析频率(4字节小端)
                 uint32_t freq_raw = (uint32_t)uart_buf[i+4] |
                                    ((uint32_t)uart_buf[i+5] << 8) |
                                    ((uint32_t)uart_buf[i+6] << 16) |
                                    ((uint32_t)uart_buf[i+7] << 24);
 
-                // 解析幅值（4字节小端模式）
+                // 解析幅值(4字节小端)
                 uint32_t amp_raw = (uint32_t)uart_buf[i+8] |
                                   ((uint32_t)uart_buf[i+9] << 8) |
                                   ((uint32_t)uart_buf[i+10] << 16) |
                                   ((uint32_t)uart_buf[i+11] << 24);
 
-                // 转换为实际值
                 *current_freq = (int)freq_raw;
                 *current_amp = (float)amp_raw / 10.0f;
 
-                return 1;  // 解析成功
+                return 1;
             }
         }
     }
 
-    return 0;  // 未找到有效AD帧头，解析失败
+    return 0;
 }
 
 int send_data(const char* str_b0, const char* str_b1, 
@@ -266,6 +269,8 @@ int send_data(const char* str_b0, const char* str_b1,
     return 0;
 }
 /* USER CODE END 0 */
+
+
 /**
   * @brief  The application entry point.
   * @retval int

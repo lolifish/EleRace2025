@@ -158,37 +158,37 @@
         <Ww>
           <count>0</count>
           <WinNumber>1</WinNumber>
-          <ItemText>freq_out,0x0A</ItemText>
+          <ItemText>UART_data_buf</ItemText>
         </Ww>
         <Ww>
           <count>1</count>
           <WinNumber>1</WinNumber>
-          <ItemText>start_study</ItemText>
+          <ItemText>start_study_flag</ItemText>
         </Ww>
         <Ww>
           <count>2</count>
           <WinNumber>1</WinNumber>
-          <ItemText>amp_out,0x0A</ItemText>
+          <ItemText>auto_gain_mode</ItemText>
         </Ww>
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>UART_data_buf</ItemText>
+          <ItemText>simulate_mode</ItemText>
         </Ww>
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>custom_mode</ItemText>
+          <ItemText>single_freq_output</ItemText>
         </Ww>
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>custom_mode_auto_amp</ItemText>
+          <ItemText>freq_out,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>study_mode</ItemText>
+          <ItemText>amp_out,0x0A</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>
