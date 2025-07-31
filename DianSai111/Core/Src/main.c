@@ -309,6 +309,7 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   // 拉高使能引脚
+  uint16_t spi_data;
   HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
@@ -321,33 +322,49 @@ int main(void)
   while (1)
   {
 		// 在main函数中处理FPGA相关操作
-    if (freq_changed) {
-        // *************************** 通知FPGA输出频率变化 ***************************//
-        freq_changed = false;  // 清除标志位
-    }
-    
-    if (amp_changed) {
-        // *************************** 通知FPGA输出幅值变化 ***************************//
-        amp_changed = false;   // 清除标志位
+    if (freq_changed || amp_changed) {
+        // *************************** 通知FPGA单频输出变化 ***************************//
+        // 开始通信
+        spi_data = 0x0001; 
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 发送目标标志位和幅度信息
+        spi_data = 0;
+        uint16_t amp_data = (uint16_t)(amp_out * 128);
+        spi_data |= (single_freq_output & 0x01) << 15;
+        spi_data |= (auto_gain_mode & 0x01) << 14;
+        spi_data |= amp_data;
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 发送目标频率信息
+        spi_data = (uint16_t)(freq_out / 100);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 清除标志位
+        freq_changed = false;  
+        amp_changed = false;
     }
     
 		char studying_string[]="loading.aph=127\xff\xff\xffhook.aph=0\xff\xff\xff";
 		char study_funished_string[]="loading.aph=0\xff\xff\xffhook.aph=127\xff\xff\xff";
 		
     if (start_study_flag) {
-// 先通知fpga开始学习
-        uint16_t spi_data = 0x0002;  // 16位数据，只最低2位为1
+        // 先通知fpga开始学习
+        spi_data = 0x0002;  // 16位数据，只最低2位为1
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
         HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         // 修改屏幕图标到繁忙
-        HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string),10);
+        HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string)-1,10);
         // 开始接受FPGA返回的数据
         invs_cnt = 0;
         while (1){
           // 接受频率
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
           // 频率收到0x0002退出
           if (spi_data == 0x0002) break;
@@ -356,7 +373,7 @@ int main(void)
 
           // 接受响应
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
           // 处理响应
           uint8_t amp_buffer = (spi_data >> 8) & 0xFF;
@@ -389,7 +406,7 @@ int main(void)
         snprintf(real_str5, sizeof(real_str1), "%.3e", a_coeffs[1].real);
         send_data(real_str1,real_str2,real_str3,real_str4,real_str5);
         // 修改屏幕图标到完成
-				HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string),10);
+				HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string)-1,10);
 
         // 清除标志位
         start_study_flag = false;  
