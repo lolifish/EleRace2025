@@ -33,6 +33,12 @@ complex_double complex_power_int(complex_double base, int exp) {
     return result;
 }
 double complex_abs_sq(complex_double a) { return a.real * a.real + a.imag * a.imag; }
+
+
+
+
+
+
 // --- 矩阵操作 (复制自 invfreqs.c，并改为 double) ---
 void complex_matrix_mul(const complex_double* A, int rows_A, int cols_A, const complex_double* B, int rows_B, int cols_B, complex_double* C) {
     if (cols_A != rows_B) { return; }
@@ -57,6 +63,11 @@ int complex_matrix_invert_gauss_jordan(complex_double* matrix, int N) {
     for (int i = 0; i < N; i++) { for (int j = 0; j < N; j++) { matrix[i * N + j] = augmented_matrix[i * (2 * N) + (j + N)]; } }
     free(augmented_matrix); return 0;
 }
+
+
+
+
+
 // --- 主 invfreqs 函数 (复制自 invfreqs.c，并改为 double) ---
 #define NB 2
 #define NA 2

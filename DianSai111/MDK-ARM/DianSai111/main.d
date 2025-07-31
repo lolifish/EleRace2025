@@ -7,7 +7,7 @@ diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h
 diansai111\main.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h
 diansai111\main.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h
 diansai111\main.o: ../Drivers/CMSIS/Include/core_cm7.h
-diansai111\main.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stdint.h
+diansai111\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdint.h
 diansai111\main.o: ../Drivers/CMSIS/Include/cmsis_version.h
 diansai111\main.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 diansai111\main.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -15,8 +15,8 @@ diansai111\main.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 diansai111\main.o: ../Drivers/CMSIS/Device/ST/STM32H7xx/Include/system_stm32h7xx.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-diansai111\main.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stddef.h
-diansai111\main.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\math.h
+diansai111\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stddef.h
+diansai111\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\math.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio_ex.h
@@ -32,10 +32,7 @@ diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
-diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
-diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
 diansai111\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
-diansai111\main.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stdio.h
-diansai111\main.o: D:\mcu\keil5_core\ARM\ARMCC\Bin\..\include\stdbool.h
-diansai111\main.o: ../../mcu_code/invfreqs_stm32.c
+diansai111\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdio.h
+diansai111\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdbool.h
