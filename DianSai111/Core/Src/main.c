@@ -93,6 +93,11 @@ volatile bool single_freq_output = false;  // 单频输出(a1)
 volatile bool auto_gain_mode = false;   // 自动增益(b2)
 volatile bool simulate_mode = false;    // 模仿模式(c3)
 
+volatile bool single_freq_output_StatusChanged = false;  // 单频输出开关状态改变标志位
+volatile bool auto_gain_mode_StatusChanged = false;   // 自动增益开关状态改变标志位
+volatile bool simulate_mode_StatusChanged = false;    // 模仿模式开关状态改变标志位
+
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     if (huart == &huart1) {
         // 1. 检测开始学习命令(AA AA AA AA)
@@ -117,17 +122,17 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             // 单频输出控制(A1开头结尾)
             if (UART_data_buf[0] == 0xA1 && UART_data_buf[5] == 0xA1) {
                 single_freq_output = (UART_data_buf[1] == 0x01);
-                
+                single_freq_output_StatusChanged=1;//标志位
             }
             // 自动增益控制(B2开头结尾)
             else if (UART_data_buf[0] == 0xB2 && UART_data_buf[5] == 0xB2) {
                 auto_gain_mode = (UART_data_buf[1] == 0x01);
-                
+                auto_gain_mode_StatusChanged=1;//标志位
             }
             // 模仿模式控制(C3开头结尾)
             else if (UART_data_buf[0] == 0xC3 && UART_data_buf[5] == 0xC3) {
                 simulate_mode = (UART_data_buf[1] == 0x01);
-                
+                simulate_mode_StatusChanged=1;//标志位
             }
         }
 
@@ -411,7 +416,16 @@ int main(void)
         // 清除标志位
         start_study_flag = false;  
       }
-		
+      
+      if(single_freq_output_StatusChanged){
+        //标志着是否输出单频 这一选项发生变化；通知FPGA根据single_freq_output开启/关闭单频输出
+      }
+      if(auto_gain_mode_StatusChanged){
+        //标志着是否自动增益 这一选项发生变化；通知FPGA根据auto_gain_mode打开/关闭自动增益
+      }
+      if(simulate_mode_StatusChanged){
+        //标志着是否在模拟状态 这一选项发生变化；通知FPGA根据simulate_mode进入/退出模拟外部网络的状态
+      }
   }
 	
 	
