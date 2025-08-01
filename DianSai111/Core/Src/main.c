@@ -327,7 +327,7 @@ int main(void)
   while (1)
   {
 		// 在main函数中处理FPGA相关操作
-    if (freq_changed || amp_changed) {
+    if (freq_changed || amp_changed || single_freq_output_StatusChanged || auto_gain_mode_StatusChanged) {
         // *************************** 通知FPGA单频输出变化 ***************************//
         // 开始通信
         spi_data = 0x0001; 
@@ -351,6 +351,8 @@ int main(void)
         // 清除标志位
         freq_changed = false;  
         amp_changed = false;
+        single_freq_output_StatusChanged = false;
+        auto_gain_mode_StatusChanged = false;
     }
     
 		char studying_string[]="loading.aph=127\xff\xff\xffhook.aph=0\xff\xff\xff";
@@ -417,14 +419,15 @@ int main(void)
         start_study_flag = false;  
       }
       
-      if(single_freq_output_StatusChanged){
-        //标志着是否输出单频 这一选项发生变化；通知FPGA根据single_freq_output开启/关闭单频输出
-      }
-      if(auto_gain_mode_StatusChanged){
-        //标志着是否自动增益 这一选项发生变化；通知FPGA根据auto_gain_mode打开/关闭自动增益
-      }
+
       if(simulate_mode_StatusChanged){
         //标志着是否在模拟状态 这一选项发生变化；通知FPGA根据simulate_mode进入/退出模拟外部网络的状态
+        if (simulate_mode) spi_data = 0x0003;
+        else  spi_data = 0x0004;
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        simulate_mode_StatusChanged = false;
       }
   }
 	
