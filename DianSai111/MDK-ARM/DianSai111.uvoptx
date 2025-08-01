@@ -188,7 +188,7 @@
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>amp_out,0x0A</ItemText>
+          <ItemText>amp_out</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>

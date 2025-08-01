@@ -71,6 +71,10 @@ static void MX_SPI1_Init(void);
 // InvFreqs计算使用的数据
 double w[50];
 complex_double h[50];
+// 幅频相频
+double amp_freq[50];
+double phase_freq[50];
+
 volatile uint16_t invs_cnt = 0;
 
 
@@ -336,15 +340,19 @@ int main(void)
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         // 发送目标标志位和幅度信息
         spi_data = 0;
-        uint16_t amp_data = (uint16_t)(amp_out * 128);
-        spi_data |= (single_freq_output & 0x01) << 15;
-        spi_data |= (auto_gain_mode & 0x01) << 14;
-        spi_data |= amp_data;
+        uint16_t fixed_point = (uint16_t)roundf(amp_out * (1 << 13));
+        fixed_point &= 0x7FFF;
+        spi_data = (single_freq_output ? 0x8000 : 0x0000) | fixed_point;
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
         HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         // 发送目标频率信息
-        spi_data = (uint16_t)(freq_out / 100);
+        spi_data = (uint16_t)(freq_out / 25);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 结束通信
+        spi_data = 0x0000; 
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
         HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
@@ -366,6 +374,16 @@ int main(void)
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         // 修改屏幕图标到繁忙
         HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string)-1,10);
+        // 等待fpga写准备
+        while (1) {
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          // 收到0xF002说明fpga已经完成扫频，可进行数据传输
+          if (spi_data == 0xF002) break;
+          HAL_Delay(1);
+        }
+
         // 开始接受FPGA返回的数据
         invs_cnt = 0;
         while (1){
@@ -373,25 +391,36 @@ int main(void)
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
           HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          // 频率收到0x0002退出
-          if (spi_data == 0x0002) break;
+          // 频率收到0xFFFD退出
+          if (spi_data == 0xFFFD) break;
           // 处理频率
           w[invs_cnt] = spi_data*100.0 * 2 * 3.141592654;
 
-          // 接受响应
+          // 接受幅频
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          // 处理幅度
+          double amp = (double)spi_data/256;
+          // 接受相频
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
           HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
           // 处理响应
-          uint8_t amp_buffer = (spi_data >> 8) & 0xFF;
-          uint8_t pha_buffer = spi_data & 0xFF;
-          double phase_rad = ((double)pha_buffer - 90.0) * 2.0;
-          double amp = 0.001 + amp_buffer * (10.0 - 0.001) / 240.0;
+          double phase_rad = ((double)spi_data / (1 << 13))/3.141592654*180.0;
+
+          amp_freq[invs_cnt] = amp;
+          phase_freq[invs_cnt] = phase_rad;
           h[invs_cnt].real = cos(phase_rad) * amp;
           h[invs_cnt].imag = sin(phase_rad) * amp;
 
           invs_cnt += 1;
         }
+        // 结束通信
+        spi_data = 0x0000; 
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
 
         // 计算InvFreqs
         complex_double b_coeffs[3];
@@ -517,7 +546,7 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
