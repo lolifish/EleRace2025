@@ -1,4 +1,3 @@
 Load "DianSai111\\DianSai111.axf" 
-Erase Failed!RDDI-DAP Error
-Error: Flash Download failed  -  "Cortex-M7"
-Flash Load finished at 19:56:44
+Erase Done.Programming Done.Verify OK.Application running ...
+Flash Load finished at 21:15:02
