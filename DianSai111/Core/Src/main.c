@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "stdbool.h"
+#include <string.h>
 
 #include "invfreqs_stm32.c"
 /* USER CODE END Includes */
@@ -67,6 +68,8 @@ static void MX_SPI1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+volatile simulation_en = 0;
+volatile double basic_freq;
 
 // InvFreqs计算使用的数据
 const double DAC_OUT_VPP = 3.7418;
@@ -76,6 +79,7 @@ volatile uint16_t spi_data;
 volatile double w[50];
 volatile complex_double h[50];
 // 幅频相频
+
 volatile double amp_freq[50];
 volatile double phase_freq[50];
 
@@ -86,6 +90,13 @@ volatile uint8_t UART_data_buf[100];
 
 volatile int freq_out = 1000;
 volatile float amp_out = 1.0f;
+
+// 系统标定值
+const float biaoding_values[30] = {
+    0.206, 0.216, 0.229, 0.247, 0.269, 0.293, 0.320, 0.349, 0.380, 0.410,
+    0.442, 0.476, 0.510, 0.546, 0.580, 0.610, 0.658, 0.697, 0.739, 0.780,
+    0.810, 0.864, 0.907, 0.953, 1.0, 1.046, 1.094, 1.143, 1.191, 1.245
+};
 
 // 保存上一次的值
 static int last_freq = 0;
@@ -340,10 +351,9 @@ int main(void)
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         // 发送目标标志位和幅度信息
         spi_data = 0;
-        double x = freq_out/1000;
         double transfer_value = 1;
-        if (auto_gain_mode) transfer_value = 5.11-2.92*x+0.19*x*x+0.29*x*x*x-0.06*x*x*x*x;
-        uint16_t fixed_point = (uint16_t)roundf(amp_out/transfer_value * (1 << 13));
+        if (auto_gain_mode) transfer_value = biaoding_values[freq_out/100-1];
+        uint16_t fixed_point = (uint16_t)roundf(amp_out*transfer_value * (1 << 13));
         fixed_point &= 0x7FFF;
         spi_data = (single_freq_output ? 0x8000 : 0x0000) | fixed_point;
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
@@ -369,154 +379,206 @@ int main(void)
 		char studying_string[]="loading.aph=127\xff\xff\xffhook.aph=0\xff\xff\xff";
 		char study_funished_string[]="loading.aph=0\xff\xff\xffhook.aph=127\xff\xff\xff";
     
-		
-    if (start_study_flag) {
-        // 先通知fpga开始学习
-        spi_data = 0x0002;  // 16位数据，只最低2位为1
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-        // 修改屏幕图标到繁忙
-        HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string)-1,10);
-        // 等待fpga写准备
-        while (1) {
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          // 收到0xF002说明fpga已经完成扫频，可进行数据传输
-          if (spi_data == 0xF002) break;
-          HAL_Delay(1);
-        }
-
-        // 开始接受FPGA返回的数据
-        invs_cnt = 0;
-        while (1){
-          // 接受频率
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          // 频率收到0xFFFD退出
-          if (spi_data == 0xFFFD) break;
-          // 处理频率
-          double freq = spi_data*100.0;
-          w[invs_cnt] = freq * 2 * 3.141592654;
-
-          // 接受幅频
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          // 处理幅度
-          double amp = (double)spi_data/255 * ADC_IN_VPP / DAC_OUT_VPP;
-          // 接受相频
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          // 处理响应
-          double phase_rad = (double)(int16_t)spi_data/(1 << 13)/3.141592654*180.0;
-
-          amp_freq[invs_cnt] = amp;
-          double delta_phase = freq * 0.000202;
-          if (delta_phase > 180) delta_phase = delta_phase-360;
-          phase_freq[invs_cnt] = phase_rad + delta_phase;
-
-          // 复频响
-          h[invs_cnt].real = cos(phase_rad) * amp;
-          h[invs_cnt].imag = sin(phase_rad) * amp;
-
-          invs_cnt += 1;
-        }
-        // 结束通信
-        spi_data = 0x0000; 
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-
-        // 计算InvFreqs
-        complex_double b_coeffs[3];
-        complex_double a_coeffs[2];
-        invfreqs_stm32(h, w, invs_cnt, b_coeffs, a_coeffs);
-
-        // 转为字符串发送
-        char real_str1[64];
-        char real_str2[64];
-        char real_str3[64];
-        char real_str4[64];
-        char real_str5[64];
-
-        // 将实部转换为科学计数法字符串
-        snprintf(real_str1, sizeof(real_str1), "%.3e", b_coeffs[0].real);
-        snprintf(real_str2, sizeof(real_str1), "%.3e", b_coeffs[1].real);
-        snprintf(real_str3, sizeof(real_str1), "%.3e", b_coeffs[2].real);
-        snprintf(real_str4, sizeof(real_str1), "%.3e", a_coeffs[0].real);
-        snprintf(real_str5, sizeof(real_str1), "%.3e", a_coeffs[1].real);
-        send_data(real_str1,real_str2,real_str3,real_str4,real_str5);
-        // 修改屏幕图标到完成
-				HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string)-1,10);
-
-        // 清除标志位
-        start_study_flag = false;  
-      }
       
+      if (start_study_flag) {
+          // 先通知fpga开始学习
+          spi_data = 0x0002;  // 16位数据，只最低2位为1
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          // 修改屏幕图标到繁忙
+          HAL_UART_Transmit(&huart1, (uint8_t*)&studying_string,sizeof(studying_string)-1,10);
+          // 等待fpga写准备
+          while (1) {
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+            HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+            // 收到0xF002说明fpga已经完成扫频，可进行数据传输
+            if (spi_data == 0xF002) break;
+            HAL_Delay(1);
+          }
+
+          // 开始接受FPGA返回的数据
+          invs_cnt = 0;
+          while (1){
+            // 接受频率
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+            HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+            // 频率收到0xFFFD退出
+            if (spi_data == 0xFFFD) break;
+            // 处理频率
+            double freq = spi_data*100.0;
+            w[invs_cnt] = freq * 2 * 3.141592654;
+
+            // 接受幅频
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+            HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+            // 处理幅度
+            double amp = (double)spi_data * ADC_IN_VPP / DAC_OUT_VPP/255;
+            // 接受相频
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+            HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+            HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+            // 对于幅度逼近0的情况，相位无效，丢弃此频点
+            if (amp < 0.0001) continue;
+            // 处理相位
+            double phase_rad = (double)(int16_t)spi_data/(1 << 13)/3.141592654*180.0;
+            amp_freq[invs_cnt] = amp;
+            
+            double delta_phase = freq * 0.000202;
+            if (delta_phase > 180) delta_phase = delta_phase-360;
+            phase_rad += delta_phase;
+            if (phase_rad > 180) phase_rad -= 360;
+            if (phase_rad < -180) phase_rad+=360;
+
+            phase_freq[invs_cnt] = phase_rad;
+
+            // 复频响
+            h[invs_cnt].real = cos(phase_rad) * amp;
+            h[invs_cnt].imag = sin(phase_rad) * amp;
+
+            invs_cnt += 1;
+          }
+          // 结束通信
+          spi_data = 0x0000; 
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+
+          // 计算InvFreqs
+          complex_double b_coeffs[3];
+          complex_double a_coeffs[3];
+          invfreqs_stm32(h, w, invs_cnt, b_coeffs, a_coeffs);
+
+          // 转为字符串发送
+          char real_str1[64];
+          char real_str2[64];
+          char real_str3[64];
+          char real_str4[64];
+          char real_str5[64];
+
+          // 将实部转换为科学计数法字符串
+          snprintf(real_str1, sizeof(real_str1), "%.2e", b_coeffs[0].real);
+          snprintf(real_str2, sizeof(real_str2), "%.2e", b_coeffs[1].real);
+          snprintf(real_str3, sizeof(real_str3), "%.2e", b_coeffs[2].real);
+          snprintf(real_str4, sizeof(real_str4), "%.2e", a_coeffs[1].real);
+          snprintf(real_str5, sizeof(real_str5), "%.2e", a_coeffs[2].real);
+          send_data(real_str1,real_str2,real_str3,real_str4,real_str5);
+          // 修改屏幕图标到完成
+          HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string)-1,10);
+
+          // 滤波器类型判断
+          uint16_t size = invs_cnt;
+          int passStart = -1, passEnd = -1;  // 通带起止索引
+          bool hasPass = 0, hasStop = 0;     // 是否存在通带/阻带
+          bool stopFirst = 0, stopLast = 0;  // 首尾是否为阻带
+          bool hasMiddleStop = 0;            // 是否存在中间阻带
+          
+          for (int i = 0; i < size; i++) {
+              // 判断当前点是否为通带
+              if (amp_freq[i] >= 0.707) {
+                  hasPass = 1;
+                  if (passStart == -1) passStart = i;
+                  passEnd = i;
+              }
+              // 判断当前点是否为阻带
+              if (amp_freq[i] <= 0.2) {
+                  hasStop = 1;
+                  if (i == 1) stopFirst = 1;       // 首点为阻带
+                  if (i == size-2) stopLast = 1;    // 尾点为阻带
+                  if (i > 2 && i < size-3) hasMiddleStop = 1;  // 中间有阻带
+              }
+          }
+          
+          //t11带阻，t10带通，t9低通，t8高通
+          
+          // 判断滤波器类型
+          const char* show_filter_cmd = "vis t11,0\xff\xff\xff";
+          if (passStart == 0 && stopLast) show_filter_cmd = "vis t9,1\xff\xff\xff";
+          if (stopFirst && passEnd == size-1) show_filter_cmd = "vis t8,1\xff\xff\xff";
+          if (passStart > 0 && passEnd < size-1 && stopFirst && stopLast) show_filter_cmd = "vis t11,1\xff\xff\xff";
+          if (passStart == 0 && passEnd == size-1 && hasMiddleStop) show_filter_cmd = "vis t10,0\xff\xff\xff";
+          HAL_UART_Transmit(&huart1, show_filter_cmd, strlen(show_filter_cmd), 10);
+
+          // 清除标志位
+          start_study_flag = false;  
+        }
+        
 
       if(simulate_mode_StatusChanged){
         // 进入模拟状态立即执行
         if (simulate_mode) {
           spi_data = 0x0004;
+          simulation_en = 1;
           simulation_mode_ready_quit = 0;
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
         }
         // 退出模拟状态则设置标志位，
         else simulation_mode_ready_quit=1;
-
+        
         simulate_mode_StatusChanged = false;
       }
 
-      // simulate_mode维持的事务
-      if (simulate_mode) {
-        // 先询问频率计频率
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-        HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-        double basic_freq = spi_data*100.0;
-        // 检测是否要停止
-        if (simulation_mode_ready_quit) spi_data=0xF008;
-        else spi_data = 0xF004;
+    // simulate_mode维持的事务
+    if (simulation_en) {
+      HAL_Delay(19);
+      // 先询问频率计频率
+      HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+      HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+      HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+      basic_freq = spi_data*100.0/2;
+      
+      // 检测是否要停止
+      if (simulation_mode_ready_quit) {
+        simulation_en = 0;
+        spi_data=0xF008;
+      }
+      else spi_data = 0xF004;
+
+      HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+      HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+      HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+    }
+    if (simulation_en){
+      // 计算10个频点的IQ
+      for (int i=0; i<10; i++){
+        double w_now = basic_freq*(i+1)*2*3.141592654;
+        // 找到离w_now最近的频率低于w_now的位置j，算出多余频率在频段中的位置（0-1归一化表示）
+        uint16_t j=0;
+        while (1) {
+            if (w[j+1] > w_now) break;
+            j += 1;
+            if (j>=33) break;
+        }
+        double dis = (w_now-w[j])/(w[j+1]-w[j]);
+        // 线性拟合Amp和Phase
+        double amp_now =    amp_freq[j] +     (amp_freq[j+1]-amp_freq[j])     * dis;
+        double phase_now =  phase_freq[j] +   (phase_freq[j+1]-phase_freq[j]) * dis;
+        // 计算IQ
+        double I = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*cos(phase_now);
+        double Q = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*sin(phase_now);
+        // 发送
+        int16_t int_part_I = (int16_t)I;  // 取整数部分
+        uint16_t signed10bit_I = ((uint16_t)(int_part_I & 0x03FF));   // 取低10位
+
+        int16_t int_part_Q = (int16_t)Q;  // 取整数部分
+        uint16_t signed10bit_Q = ((uint16_t)(int_part_Q & 0x03FF));   // 取低10位
+
+        uint16_t high4 = ((uint16_t)(i & 0x0F)) << 12;            // 高4位为i
+        spi_data = high4 | signed10bit_I;                       // 拼装
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
         HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-        // 计算10个频点的IQ
-        for (int i=0; i<10; i++){
-          double w_now = basic_freq*(i+1)*2*3.141592654;
-          // 找到离w_now最近的频率低于w_now的位置j，算出多余频率在频段中的位置（0-1归一化表示）
-          uint8_t j=0;
-          while (1) if (w[j+1] > w_now) break;
-          double dis = (w_now-w[j])/(w[j+1]-w[j]);
-          // 线性拟合Amp和Phase
-          double amp_now = amp_freq[i] + (amp_freq[i+1]-amp_freq[i]) * dis;
-          double phase_now = phase_freq[i] + (phase_freq[i+1]-phase_freq[i]) * dis;
-          // 计算IQ
-          double I = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*sin(phase_now);
-          double Q = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*cos(phase_now);
-          // 发送
-          int16_t int_part_I = (int16_t)I;  // 取整数部分
-          uint16_t signed10bit_I = ((uint16_t)(int_part_I & 0x03FF));   // 取低10位
-
-          int16_t int_part_Q = (int16_t)Q;  // 取整数部分
-          uint16_t signed10bit_Q = ((uint16_t)(int_part_Q & 0x03FF));   // 取低10位
-
-          uint16_t high4 = ((uint16_t)(i & 0x0F)) << 12;            // 高4位为i
-          spi_data = high4 | signed10bit_I;                       // 拼装
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-          spi_data = high4 | signed10bit_Q;                       // 拼装
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
-          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-        }
+        spi_data = high4 | signed10bit_Q;                       // 拼装
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
       }
+    }
   }
 	
 	
