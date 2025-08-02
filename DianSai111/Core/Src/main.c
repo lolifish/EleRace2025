@@ -69,6 +69,8 @@ static void MX_SPI1_Init(void);
 /* USER CODE BEGIN 0 */
 
 // InvFreqs计算使用的数据
+const double DAC_OUT_VPP = 3.7418;
+const double ADC_IN_VPP = 4.04;
 volatile uint16_t spi_data;
 
 volatile double w[50];
@@ -317,6 +319,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // 拉高使能引脚
   HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+  uint8_t simulation_mode_ready_quit = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -403,7 +406,7 @@ int main(void)
           HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
           // 处理幅度
-          double amp = (double)spi_data/255*4.04/3.7418;
+          double amp = (double)spi_data/255 * ADC_IN_VPP / DAC_OUT_VPP;
           // 接受相频
           HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
           HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
@@ -456,13 +459,63 @@ int main(void)
       
 
       if(simulate_mode_StatusChanged){
-        //标志着是否在模拟状态 这一选项发生变化；通知FPGA根据simulate_mode进入/退出模拟外部网络的状态
-        if (simulate_mode) spi_data = 0x0003;
-        else  spi_data = 0x0004;
+        // 进入模拟状态立即执行
+        if (simulate_mode) {
+          spi_data = 0x0004;
+          simulation_mode_ready_quit = 0;
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        }
+        // 退出模拟状态则设置标志位，
+        else simulation_mode_ready_quit=1;
+
+        simulate_mode_StatusChanged = false;
+      }
+
+      // simulate_mode维持的事务
+      if (simulate_mode) {
+        // 先询问频率计频率
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
         HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
         HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
-        simulate_mode_StatusChanged = false;
+        double basic_freq = spi_data*100.0;
+        // 检测是否要停止
+        if (simulation_mode_ready_quit) spi_data=0xF008;
+        else spi_data = 0xF004;
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+        HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+        HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        // 计算10个频点的IQ
+        for (int i=0; i<10; i++){
+          double w_now = basic_freq*(i+1)*2*3.141592654;
+          // 找到离w_now最近的频率低于w_now的位置j，算出多余频率在频段中的位置（0-1归一化表示）
+          uint8_t j=0;
+          while (1) if (w[j+1] > w_now) break;
+          double dis = (w_now-w[j])/(w[j+1]-w[j]);
+          // 线性拟合Amp和Phase
+          double amp_now = amp_freq[i] + (amp_freq[i+1]-amp_freq[i]) * dis;
+          double phase_now = phase_freq[i] + (phase_freq[i+1]-phase_freq[i]) * dis;
+          // 计算IQ
+          double I = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*sin(phase_now);
+          double Q = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*cos(phase_now);
+          // 发送
+          int16_t int_part_I = (int16_t)I;  // 取整数部分
+          uint16_t signed10bit_I = ((uint16_t)(int_part_I & 0x03FF));   // 取低10位
+
+          int16_t int_part_Q = (int16_t)Q;  // 取整数部分
+          uint16_t signed10bit_Q = ((uint16_t)(int_part_Q & 0x03FF));   // 取低10位
+
+          uint16_t high4 = ((uint16_t)(i & 0x0F)) << 12;            // 高4位为i
+          spi_data = high4 | signed10bit_I;                       // 拼装
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+          spi_data = high4 | signed10bit_Q;                       // 拼装
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
+          HAL_SPI_Transmit(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
+        }
       }
   }
 	
