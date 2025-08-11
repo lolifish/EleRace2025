@@ -77,7 +77,7 @@ double unwrap_deg(double deg1, double deg2) {
 }
 
 
-volatile simulation_en = 0;
+volatile uint8_t simulation_en = 0;
 volatile double basic_freq;
 
 // InvFreqs计算使用的数据
@@ -85,14 +85,14 @@ const double DAC_OUT_VPP = 3.7418;
 const double ADC_IN_VPP = 4.04;
 volatile uint16_t spi_data;
 
-volatile double w[50];
-volatile complex_double h[50];
+volatile double w[125];
+volatile complex_double h[125];
 // 幅频相频
 
-volatile double amp_freq[50];
-volatile double phase_freq[50];
+volatile double amp_freq[125];
+volatile double phase_freq[125];
 
-volatile uint16_t invs_cnt = 0;
+volatile uint16_t invs_cnt = 0;   // 频响总数
 
 
 volatile uint8_t UART_data_buf[100];
@@ -435,10 +435,14 @@ int main(void)
             // 处理相位
             double phase_rad = (double)(int16_t)spi_data/(1 << 13)/M_PI*180.0;
             amp_freq[invs_cnt] = amp;
-            
+            // 标定的系统相移
             double delta_phase = freq * 0.000202;
             if (delta_phase > 180) delta_phase = delta_phase-360;
             phase_rad += delta_phase;
+            // 设置回180度以内
+            if (phase_rad > 180) phase_rad -= 360;
+            if (phase_rad < -180) phase_rad+=360;
+            // 执行两遍
             if (phase_rad > 180) phase_rad -= 360;
             if (phase_rad < -180) phase_rad+=360;
 
@@ -478,54 +482,59 @@ int main(void)
           // 修改屏幕图标到完成
           HAL_UART_Transmit(&huart1,(uint8_t*)study_funished_string,sizeof(study_funished_string)-1,10);
 
+          
           // 滤波器类型判断
-          uint16_t size = invs_cnt;
-          int passStart = -1, passEnd = -1;  // 通带起止索引
-          bool hasPass = 0, hasStop = 0;     // 是否存在通带/阻带
-          bool stopFirst = 0, stopLast = 0;  // 首尾是否为阻带
-          bool hasMiddleStop = 0;            // 是否存在中间阻带
-          
-          for (int i = 0; i < size; i++) {
-              // 判断当前点是否为通带
-              if (amp_freq[i] >= 0.707) {
-                  hasPass = 1;
-                  if (passStart == -1) passStart = i;
-                  passEnd = i;
-              }
-              // 判断当前点是否为阻带
-              if (amp_freq[i] <= 0.2) {
-                  hasStop = 1;
-                  if (i == 1) stopFirst = 1;       // 首点为阻带
-                  if (i == size-2) stopLast = 1;    // 尾点为阻带
-                  if (i > 2 && i < size-3) hasMiddleStop = 1;  // 中间有阻带
-              }
-          }
-          
-          //t11带阻，t10带通，t9低通，t8高通
+          // t11带阻，t10带通，t9低通，t8高通
           uint8_t DaiZu[] = "vis t11,1\xff\xff\xff";
           uint8_t DaiTong[] = "vis t10,1\xff\xff\xff";
           uint8_t DiTong[] ="vis t9,1\xff\xff\xff";
           uint8_t GaoTong[]="vis t8,1\xff\xff\xff";
 					uint8_t weizhi[]="vis t14,1\xff\xff\xff";
-					
-					if(amp_freq[1]>=amp_freq[0]||amp_freq[0]==0)//低频上升趋势，高通或带通
-					{
-						if(amp_freq[30]<=amp_freq[29]||amp_freq[30]==0)//低频上升，高频下降，带通
-							HAL_UART_Transmit(&huart1, DaiTong, sizeof(DaiTong), 10);//带通
-						else HAL_UART_Transmit(&huart1,GaoTong, sizeof(GaoTong), 10);//高通
-					}
-					else if(amp_freq[1]<=amp_freq[0])//低频下降趋势，带阻或者低通
-					{
-						if(amp_freq[30]>amp_freq[29])//低频下降，高频上升，带阻
-							HAL_UART_Transmit(&huart1, DaiZu, sizeof(DaiZu), 10);
-						else HAL_UART_Transmit(&huart1, DiTong, sizeof(DiTong), 10);//低通
-					}
-          
-					else HAL_UART_Transmit(&huart1, weizhi, sizeof(weizhi), 10);//未知
-          // 清除标志位
-          start_study_flag = false;  
-        }
-        
+          // 判断标志位
+          uint8_t start_pass = 0; // 低频有通带
+          uint8_t start_stop = 0; // 低频有阻带
+          uint8_t start_rise = 0; // 低频有上升趋势
+          uint8_t start_drop = 0; // 低频有下降趋势
+          uint8_t end_pass   = 0; // 高频有通带
+          uint8_t end_stop   = 0; // 高频有阻带
+          uint8_t end_rise   = 0; // 高频有上升趋势
+          uint8_t end_drop   = 0; // 高频有下降趋势
+          uint8_t middle_stop= 0; // 中间存在明显尖峰
+          uint8_t middle_pass= 0; // 中间存在明显尖峰
+          // 计算标志位
+          double start_1st = (amp_freq[0]+amp_freq[1]+amp_freq[2])/3;
+          double start_2nd = (amp_freq[5]+amp_freq[6]+amp_freq[7])/3;
+          double end_1st = (amp_freq[invs_cnt-1]+amp_freq[invs_cnt-2]+amp_freq[invs_cnt-3])/3;
+          double end_2nd = (amp_freq[invs_cnt-6]+amp_freq[invs_cnt-7]+amp_freq[invs_cnt-8])/3;
+          if (start_1st > 0.5) start_pass = 1;
+          if (start_1st < 0.15) start_drop = 1;
+          if (start_2nd / start_1st > 1.05) start_rise = 1;
+          if (start_1st / start_2nd > 1.05) start_drop = 1;
+          if (end_1st > 0.5) start_pass = 1;
+          if (end_1st < 0.15) start_drop = 1;
+          if (end_2nd / end_1st > 1.05) end_drop = 1;
+          if (end_1st / end_2nd > 1.05) end_rise = 1;
+          for (int i=15; i<invs_cnt-18; i+=1){
+            double amp_middle = (amp_freq[i]+amp_freq[i+1]+amp_freq[i+2])/3;
+            double amp_left = (amp_freq[i-10]+amp_freq[i-10+1]+amp_freq[i-10+2])/3;
+            double amp_right = (amp_freq[i+10]+amp_freq[i+10+1]+amp_freq[i+10+2])/3;
+            if ((amp_middle/amp_left>1.05) && (amp_middle/amp_right>1.05)) middle_pass = 1;
+            if ((amp_middle/amp_left<0.95) && (amp_middle/amp_right<0.95)) middle_stop = 1;
+          }
+          // 根据标志位判断滤波器类型
+          // 如果低频存在阻带/低频在上升，那么是高通或者带通
+          if ((start_stop||start_rise)){
+            // 如果高频存在阻带/高频在下降/中频存在尖峰三个条件满足2个以上，那么就是带通，否则就认为是高通
+            if (end_stop*2+end_drop+middle_pass >= 2) HAL_UART_Transmit(&huart1, DaiTong, sizeof(DaiTong), 10);
+            else HAL_UART_Transmit(&huart1,GaoTong, sizeof(GaoTong), 10);
+          }
+          // 否则在低通和带阻间决策
+          else {
+            if (end_pass*2+end_rise+middle_stop >= 2) HAL_UART_Transmit(&huart1, DaiZu, sizeof(DaiZu), 10);
+            else HAL_UART_Transmit(&huart1, DiTong, sizeof(DiTong), 10);
+          }
+          start_study_flag = false;
+      }
 
       if(simulate_mode_StatusChanged){
         // 进入模拟状态立即执行
@@ -565,14 +574,14 @@ int main(void)
     }
     if (simulation_en){
       // 计算10个频点的IQ
-      for (int i=0; i<10; i++){
+      for (int i=0; i<11; i++){
         double w_now = basic_freq*(i+1)*2*M_PI;
         // 找到离w_now最近的频率低于w_now的位置j，算出多余频率在频段中的位置（0-1归一化表示）
         uint16_t j=0;
         while (1) {
             if (w[j+1] > w_now) break;
             j += 1;
-            if (j>=33) break;
+            if (j>=124) break;
         }
         double dis = (w_now-w[j])/(w[j+1]-w[j]);
         // 线性拟合Amp和Phase
@@ -580,8 +589,8 @@ int main(void)
         double delta_phase = unwrap_deg(phase_freq[j], phase_freq[j+1]);
         double phase_now = phase_freq[j] + delta_phase * dis;
         // 计算IQ
-        double I = (amp_now*255*1.2)*cos(phase_now * M_PI/180);
-        double Q = (amp_now*255*1.2)*sin(phase_now * M_PI/180);
+        double I = (amp_now*255*1.18)*cos(phase_now * M_PI/180);
+        double Q = (amp_now*255*1.18)*sin(phase_now * M_PI/180);
         // 发送
         int16_t int_part_I = (int16_t)I;  // 取整数部分
         uint16_t signed10bit_I = ((uint16_t)(int_part_I & 0x03FF));   // 取低10位
