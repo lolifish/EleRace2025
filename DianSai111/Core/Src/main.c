@@ -64,10 +64,19 @@ static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
+#define M_PI 3.14159265358979323846
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+double unwrap_deg(double deg1, double deg2) {
+    double delta = deg2 - deg1;
+    while (delta > 180.0) delta -= 360.0;
+    while (delta < -180.0) delta += 360.0;
+    return delta;
+}
+
+
 volatile simulation_en = 0;
 volatile double basic_freq;
 
@@ -409,14 +418,14 @@ int main(void)
             if (spi_data == 0xFFFD) break;
             // 处理频率
             double freq = spi_data*100.0;
-            w[invs_cnt] = freq * 2 * 3.141592654;
+            w[invs_cnt] = freq * 2 * M_PI;
 
             // 接受幅频
             HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
             HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
             HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_SET);
             // 处理幅度
-            double amp = (double)spi_data * ADC_IN_VPP / DAC_OUT_VPP/255;
+            double amp = (double)spi_data * ADC_IN_VPP / DAC_OUT_VPP / 255;
             // 接受相频
             HAL_GPIO_WritePin(SPI1_EN_GPIO_Port, SPI1_EN_Pin, GPIO_PIN_RESET);
             HAL_SPI_Receive(&hspi1, (uint8_t*)&spi_data, 1, HAL_MAX_DELAY);
@@ -424,7 +433,7 @@ int main(void)
             // 对于幅度逼近0的情况，相位无效，丢弃此频点
             if (amp < 0.0001) continue;
             // 处理相位
-            double phase_rad = (double)(int16_t)spi_data/(1 << 13)/3.141592654*180.0;
+            double phase_rad = (double)(int16_t)spi_data/(1 << 13)/M_PI*180.0;
             amp_freq[invs_cnt] = amp;
             
             double delta_phase = freq * 0.000202;
@@ -436,8 +445,8 @@ int main(void)
             phase_freq[invs_cnt] = phase_rad;
 
             // 复频响
-            h[invs_cnt].real = cos(phase_rad) * amp;
-            h[invs_cnt].imag = sin(phase_rad) * amp;
+            h[invs_cnt].real = cos(phase_rad*M_PI/180) * amp;
+            h[invs_cnt].imag = sin(phase_rad*M_PI/180) * amp;
 
             invs_cnt += 1;
           }
@@ -493,15 +502,26 @@ int main(void)
           }
           
           //t11带阻，t10带通，t9低通，t8高通
+          uint8_t DaiZu[] = "vis t11,1\xff\xff\xff";
+          uint8_t DaiTong[] = "vis t10,1\xff\xff\xff";
+          uint8_t DiTong[] ="vis t9,1\xff\xff\xff";
+          uint8_t GaoTong[]="vis t8,1\xff\xff\xff";
+					uint8_t weizhi[]="vis t14,1\xff\xff\xff";
+					
+					if(amp_freq[1]>=amp_freq[0]||amp_freq[0]==0)//低频上升趋势，高通或带通
+					{
+						if(amp_freq[30]<=amp_freq[29]||amp_freq[30]==0)//低频上升，高频下降，带通
+							HAL_UART_Transmit(&huart1, DaiTong, sizeof(DaiTong), 10);//带通
+						else HAL_UART_Transmit(&huart1,GaoTong, sizeof(GaoTong), 10);//高通
+					}
+					else if(amp_freq[1]<=amp_freq[0])//低频下降趋势，带阻或者低通
+					{
+						if(amp_freq[30]>amp_freq[29])//低频下降，高频上升，带阻
+							HAL_UART_Transmit(&huart1, DaiZu, sizeof(DaiZu), 10);
+						else HAL_UART_Transmit(&huart1, DiTong, sizeof(DiTong), 10);//低通
+					}
           
-          // 判断滤波器类型
-          const char* show_filter_cmd = "vis t11,0\xff\xff\xff";
-          if (passStart == 0 && stopLast) show_filter_cmd = "vis t9,1\xff\xff\xff";
-          if (stopFirst && passEnd == size-1) show_filter_cmd = "vis t8,1\xff\xff\xff";
-          if (passStart > 0 && passEnd < size-1 && stopFirst && stopLast) show_filter_cmd = "vis t11,1\xff\xff\xff";
-          if (passStart == 0 && passEnd == size-1 && hasMiddleStop) show_filter_cmd = "vis t10,0\xff\xff\xff";
-          HAL_UART_Transmit(&huart1, show_filter_cmd, strlen(show_filter_cmd), 10);
-
+					else HAL_UART_Transmit(&huart1, weizhi, sizeof(weizhi), 10);//未知
           // 清除标志位
           start_study_flag = false;  
         }
@@ -546,7 +566,7 @@ int main(void)
     if (simulation_en){
       // 计算10个频点的IQ
       for (int i=0; i<10; i++){
-        double w_now = basic_freq*(i+1)*2*3.141592654;
+        double w_now = basic_freq*(i+1)*2*M_PI;
         // 找到离w_now最近的频率低于w_now的位置j，算出多余频率在频段中的位置（0-1归一化表示）
         uint16_t j=0;
         while (1) {
@@ -557,10 +577,11 @@ int main(void)
         double dis = (w_now-w[j])/(w[j+1]-w[j]);
         // 线性拟合Amp和Phase
         double amp_now =    amp_freq[j] +     (amp_freq[j+1]-amp_freq[j])     * dis;
-        double phase_now =  phase_freq[j] +   (phase_freq[j+1]-phase_freq[j]) * dis;
+        double delta_phase = unwrap_deg(phase_freq[j], phase_freq[j+1]);
+        double phase_now = phase_freq[j] + delta_phase * dis;
         // 计算IQ
-        double I = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*cos(phase_now);
-        double Q = (amp_now*255*DAC_OUT_VPP/ADC_IN_VPP)*sin(phase_now);
+        double I = (amp_now*255*1.2)*cos(phase_now * M_PI/180);
+        double Q = (amp_now*255*1.2)*sin(phase_now * M_PI/180);
         // 发送
         int16_t int_part_I = (int16_t)I;  // 取整数部分
         uint16_t signed10bit_I = ((uint16_t)(int_part_I & 0x03FF));   // 取低10位
