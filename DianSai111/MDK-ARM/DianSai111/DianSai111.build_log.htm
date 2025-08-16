@@ -21,13 +21,36 @@ Target DLL:      CMSIS_AGDI.dll V1.33.22.0
 Dialog DLL:      TCM.DLL V1.56.6.0
  
 <h2>Project:</h2>
-e:\programs\EleRace2025\DianSai111\MDK-ARM\DianSai111.uvprojx
-Project File Date:  07/31/2025
+E:\programs\EleRace2025\DianSai111\MDK-ARM\DianSai111.uvprojx
+Project File Date:  08/02/2025
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 5 (build 528)', folder: 'D:\mcu\keil5_core\ARM\ARMCC\Bin'
 Build target 'DianSai111'
-"DianSai111\DianSai111.axf" - 0 Error(s), 0 Warning(s).
+compiling main.c...
+../Core/Src/main.c(142): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "void *"
+                  memset(UART_data_buf, 0, 100);
+../Core/Src/main.c(143): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "uint8_t *"
+                  HAL_UARTEx_ReceiveToIdle_DMA(&huart1,UART_data_buf, 100);
+../Core/Src/main.c(170): warning:  #223-D: function "decode_uart" declared implicitly
+          int decode_status = decode_uart(UART_data_buf, Size, &current_freq, &current_amp);
+../Core/Src/main.c(189): warning:  #167-D: argument of type "volatile uint8_t *" is incompatible with parameter of type "void *"
+          memset(UART_data_buf, 0, 100);
+../Core/Src/main.c(466): warning:  #167-D: argument of type "volatile complex_double *" is incompatible with parameter of type "const complex_double *"
+            invfreqs_stm32(h, w, invs_cnt, b_coeffs, a_coeffs);
+../Core/Src/main.c(466): warning:  #167-D: argument of type "volatile double *" is incompatible with parameter of type "const double *"
+            invfreqs_stm32(h, w, invs_cnt, b_coeffs, a_coeffs);
+../Core/Src/main.c(492): warning:  #177-D: variable "weizhi"  was declared but never referenced
+  					uint8_t weizhi[]="vis t14,1\xff\xff\xff";
+../Core/Src/main.c(494): warning:  #550-D: variable "start_pass"  was set but never used
+            uint8_t start_pass = 0; // 低频有通带
+../Core/Src/main.c(497): warning:  #550-D: variable "start_drop"  was set but never used
+            uint8_t start_drop = 0; // 低频有下降趋�?
+../Core/Src/main.c: 9 warnings, 0 errors
+linking...
+Program Size: Code=41080 RO-data=1392 RW-data=68 ZI-data=31028  
+FromELF: creating hex file...
+"DianSai111\DianSai111.axf" - 0 Error(s), 9 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -50,7 +73,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE@6.1.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:02
+Build Time Elapsed:  00:00:03
 </pre>
 </body>
 </html>

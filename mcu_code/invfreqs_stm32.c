@@ -3,7 +3,7 @@
 #include <stdio.h> // 仅用于在main函数中打印结果
 
 // --- 用户可配置参数 ---
-#define MAX_FREQ_POINTS 50 // 最大频率点数量
+#define MAX_FREQ_POINTS 125 // 最大频率点数量
 
 // --- 固定算法参数 ---
 #define NB 2 // 分子阶数
