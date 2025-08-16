@@ -507,11 +507,11 @@ int main(void)
           double end_1st = (amp_freq[invs_cnt-1]+amp_freq[invs_cnt-2]+amp_freq[invs_cnt-3])/3;
           double end_2nd = (amp_freq[invs_cnt-6]+amp_freq[invs_cnt-7]+amp_freq[invs_cnt-8])/3;
           if (start_1st > 0.5) start_pass = 1;
-          if (start_1st < 0.15) start_drop = 1;
+          if (start_1st < 0.15) start_stop = 1;
           if (start_2nd / start_1st > 1.05) start_rise = 1;
           if (start_1st / start_2nd > 1.05) start_drop = 1;
-          if (end_1st > 0.5) start_pass = 1;
-          if (end_1st < 0.15) start_drop = 1;
+          if (end_1st > 0.5) end_pass = 1;
+          if (end_1st < 0.15) end_stop = 1;
           if (end_2nd / end_1st > 1.05) end_drop = 1;
           if (end_1st / end_2nd > 1.05) end_rise = 1;
           for (int i=15; i<invs_cnt-18; i+=1){
