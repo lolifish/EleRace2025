@@ -1,0 +1,46 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_ScaleFactor":"1.0",
+   "Default View_TopLeft":"-342,-244",
+   "ExpandedHierarchyInLayout":"",
+   "guistr":"# # String gsaved with Nlview 7.0r4  2019-12-20 bk=1.5203 VDI=41 GEI=36 GUI=JA:10.0 TLS
+#  -string -flagsOSRD
+preplace port DDR -pg 1 -lvl 2 -x 420 -y -110 -defaultsOSRD
+preplace port FIXED_IO -pg 1 -lvl 2 -x 420 -y -90 -defaultsOSRD
+preplace port port-id_ad_clk -pg 1 -lvl 2 -x 420 -y 30 -defaultsOSRD
+preplace port port-id_da_clk -pg 1 -lvl 2 -x 420 -y 50 -defaultsOSRD
+preplace port port-id_PD -pg 1 -lvl 2 -x 420 -y 70 -defaultsOSRD
+preplace port port-id_MISO -pg 1 -lvl 2 -x 420 -y 110 -defaultsOSRD
+preplace port port-id_LED -pg 1 -lvl 2 -x 420 -y 130 -defaultsOSRD
+preplace port port-id_clk -pg 1 -lvl 0 -x 0 -y 20 -defaultsOSRD
+preplace port port-id_key -pg 1 -lvl 0 -x 0 -y 60 -defaultsOSRD
+preplace port port-id_SCK -pg 1 -lvl 0 -x 0 -y 80 -defaultsOSRD
+preplace port port-id_CS -pg 1 -lvl 0 -x 0 -y 100 -defaultsOSRD
+preplace port port-id_MOSI -pg 1 -lvl 0 -x 0 -y 120 -defaultsOSRD
+preplace portBus da -pg 1 -lvl 2 -x 420 -y 10 -defaultsOSRD
+preplace portBus CTRL -pg 1 -lvl 2 -x 420 -y 90 -defaultsOSRD
+preplace portBus ad -pg 1 -lvl 0 -x 0 -y 40 -defaultsOSRD
+preplace inst processing_system7_0 -pg 1 -lvl 1 -x 210 -y -100 -defaultsOSRD
+preplace inst top_0 -pg 1 -lvl 1 -x 210 -y 70 -defaultsOSRD
+preplace netloc CS_0_1 1 0 1 N 100
+preplace netloc MOSI_0_1 1 0 1 N 120
+preplace netloc SCK_0_1 1 0 1 N 80
+preplace netloc ad_0_1 1 0 1 N 40
+preplace netloc clk_0_1 1 0 1 N 20
+preplace netloc key_0_1 1 0 1 N 60
+preplace netloc top_0_CTRL 1 1 1 N 90
+preplace netloc top_0_LED 1 1 1 N 130
+preplace netloc top_0_MISO 1 1 1 N 110
+preplace netloc top_0_PD 1 1 1 N 70
+preplace netloc top_0_ad_clk 1 1 1 N 30
+preplace netloc top_0_da 1 1 1 N 10
+preplace netloc top_0_da_clk 1 1 1 N 50
+preplace netloc processing_system7_0_DDR 1 1 1 NJ -110
+preplace netloc processing_system7_0_FIXED_IO 1 1 1 NJ -90
+levelinfo -pg 1 0 210 420
+pagesize -pg 1 -db -bbox -sgen -110 -200 540 200
+"
+}
+{
+   "da_ps7_cnt":"1"
+}

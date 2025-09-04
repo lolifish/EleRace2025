@@ -6,7 +6,7 @@ module single_freq_test_unit(
     input signed [9:0] d_in,
     input [15:0] wait_response_delay_us,
 
-    output signed [9:0] d_out,
+    output signed [13:0] d_out,
     output reg done,
     output reg [11:0] amp, phase
     );
@@ -112,7 +112,9 @@ module single_freq_test_unit(
         else state <= next_state;
     
     // 状态转移
-    always @(*) case (state)
+    always @(*) begin 
+        next_state = state;
+        case (state)
         IDLE: next_state=WAIT_START;
         WAIT_START: if (start) next_state=SYS_START;
         SYS_START: next_state = WAIT_DELAY;
@@ -123,7 +125,7 @@ module single_freq_test_unit(
         SYS_DONE:   next_state=IDLE;
         default: next_state = IDLE;
     endcase
-
+end
     // 状态输出
     always @(posedge clk or negedge rst) begin
         if (!rst) begin
