@@ -8,7 +8,7 @@ module single_freq_synth_core(
 
     output wire signed [9:0]I,
     output wire signed [9:0]Q,
-    output wire signed [9:0]out_data
+    output wire signed [13:0]out_data
     );
 
     // DDS本振
@@ -26,7 +26,7 @@ module single_freq_synth_core(
     .dds_o(dds_Q)
     );
 
-    reg signed [9:0]rebulid;
+    reg signed [13:0]rebulid;
 
     reg signed [22:0]mul_I,mul_Q;
 
@@ -39,8 +39,8 @@ module single_freq_synth_core(
     wire signed [13:0]cut_i_I  = mul_i_I[22:9]; 
     wire signed [13:0]cut_i_Q  = mul_i_Q[22:9]; 
 
-    wire signed [9:0]cut_o_I  = mul_o_I[22:13];
-    wire signed [9:0]cut_o_Q  = mul_o_Q[22:13];
+    wire signed [13:0]cut_o_I  = mul_o_I[22:9];
+    wire signed [13:0]cut_o_Q  = mul_o_Q[22:9];
 
     // IIR
     iir_4_ord iir_m_I(
@@ -57,7 +57,7 @@ module single_freq_synth_core(
     );
 
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk or negedge rst) begin
         if (!rst) begin
             mul_I <= 0; mul_Q <= 0;
             mul_i_I <= 0; mul_i_Q <= 0;
@@ -79,6 +79,6 @@ module single_freq_synth_core(
         
     end 
 
-    assign out_data = ctrl?rebulid:dds_I[13:4];
+    assign out_data = ctrl?rebulid:dds_I;
 
 endmodule

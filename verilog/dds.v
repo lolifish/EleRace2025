@@ -3,7 +3,7 @@ parameter phase = 0
 )(
 input clk,
 input [13:0]freq,
-output reg signed [13:0]dds_o 
+output reg signed [13:0]dds_o=0 
 );
 
 
@@ -1982,7 +1982,7 @@ module dds_p(
 input clk,
 input [13:0]freq,
 input [13:0]phase,
-output reg signed [13:0]dds_o 
+output reg signed [9:0]dds_o=0 
 );
 
 
@@ -3957,7 +3957,7 @@ always@(posedge clk)begin
         addr_r<=addr+phase;
     else
         addr<=addr+phase-500000;
-    dds_o<=sin_rom[addr_r[18:8]];
+    dds_o<=sin_rom[addr_r[18:8]][13:4];
 end
 
 endmodule
